@@ -4,13 +4,25 @@ import mediapipe as mp
 from mediapipe.tasks import python
 from mediapipe.tasks.python import vision
 
+import os
 
-# -----------------------------
-# Create Face Landmarker
-# -----------------------------
+
+# ==========================================
+# MODEL PATH
+# ==========================================
+
+model_path = os.path.join(
+    os.path.dirname(__file__),
+    "face_landmarker.task"
+)
+
+
+# ==========================================
+# CREATE FACE LANDMARKER
+# ==========================================
 
 base_options = python.BaseOptions(
-    model_asset_path="face_landmarker.task"
+    model_asset_path=model_path
 )
 
 options = vision.FaceLandmarkerOptions(
@@ -19,36 +31,39 @@ options = vision.FaceLandmarkerOptions(
     num_faces=1
 )
 
-detector = vision.FaceLandmarker.create_from_options(options)
+detector = vision.FaceLandmarker.create_from_options(
+    options
+)
 
 
-# -----------------------------
-# Start Webcam
-# -----------------------------
-
-cap = cv2.VideoCapture(0)
+# ==========================================
+# FRAME TIMESTAMP
+# ==========================================
 
 frame_timestamp = 0
 
-while True:
 
-    success, frame = cap.read()
+# ==========================================
+# HEAD POSE FUNCTION
+# ==========================================
 
-    if not success:
-        print("Could not read webcam")
-        break
+def detect_head_pose(frame):
 
-    # OpenCV: BGR
-    # MediaPipe: RGB
-    rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+    global frame_timestamp
 
-    # Convert OpenCV image to MediaPipe Image
+    # Convert BGR → RGB
+    rgb_frame = cv2.cvtColor(
+        frame,
+        cv2.COLOR_BGR2RGB
+    )
+
+    # Convert to MediaPipe image
     mp_image = mp.Image(
         image_format=mp.ImageFormat.SRGB,
         data=rgb_frame
     )
 
-    # Detect face
+    # Detect face landmarks
     results = detector.detect_for_video(
         mp_image,
         frame_timestamp
@@ -56,65 +71,52 @@ while True:
 
     frame_timestamp += 1
 
-    # -----------------------------
-    # Check face
-    # -----------------------------
 
-    if results.face_landmarks:
+    # ======================================
+    # NO FACE
+    # ======================================
 
-        face_landmarks = results.face_landmarks[0]
+    if not results.face_landmarks:
+        return "NO FACE"
 
-        # Nose landmark
-        nose = face_landmarks[1]
 
-        x = nose.x
-        y = nose.y
+    # ======================================
+    # GET FACE LANDMARKS
+    # ======================================
 
-        # Simple head direction
-        if x < 0.40:
-            direction = "LOOKING LEFT"
+    face_landmarks = results.face_landmarks[0]
 
-        elif x > 0.60:
-            direction = "LOOKING RIGHT"
 
-        elif y < 0.35:
-            direction = "LOOKING UP"
+    # Nose landmark
+    nose = face_landmarks[1]
 
-        elif y > 0.65:
-            direction = "LOOKING DOWN"
+    x = nose.x
+    y = nose.y
 
-        else:
-            direction = "CENTER"
 
-        cv2.putText(
-            frame,
-            direction,
-            (50, 50),
-            cv2.FONT_HERSHEY_SIMPLEX,
-            1,
-            (0, 255, 0),
-            2
-        )
+    # ======================================
+    # HEAD DIRECTION
+    # ======================================
+
+    if x < 0.40:
+
+        direction = "LOOKING LEFT"
+
+    elif x > 0.60:
+
+        direction = "LOOKING RIGHT"
+
+    elif y < 0.35:
+
+        direction = "LOOKING UP"
+
+    elif y > 0.65:
+
+        direction = "LOOKING DOWN"
 
     else:
 
-        cv2.putText(
-            frame,
-            "NO FACE DETECTED",
-            (50, 50),
-            cv2.FONT_HERSHEY_SIMPLEX,
-            1,
-            (0, 0, 255),
-            2
-        )
-
-    # Show camera
-    cv2.imshow("Online Exam - Head Pose", frame)
-
-    # Press Q to quit
-    if cv2.waitKey(1) & 0xFF == ord("q"):
-        break
+        direction = "CENTER"
 
 
-cap.release()
-cv2.destroyAllWindows()
+    return direction
